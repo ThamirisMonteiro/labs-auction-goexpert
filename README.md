@@ -1,54 +1,55 @@
-# Tarefas para Implementar o Fechamento Automático de Leilões
+# Leilão
 
-## 1. Configuração do Ambiente
-- [ ] Clone o repositório fornecido.
-- [ ] Configure o ambiente de desenvolvimento utilizando Docker/Docker Compose.
-- [ ] Certifique-se de que o projeto está rodando corretamente.
+## Como Rodar
 
----
+### 1. Configurar Variáveis de Ambiente
 
-## 2. Definir Variáveis de Ambiente
-- [ ] Adicione variáveis de ambiente para configurar o tempo de duração do leilão (por exemplo, `AUCTION_DURATION_SECONDS`).
-- [ ] Atualize os arquivos necessários para carregar essas variáveis, como arquivos `.env` e configurações no Docker Compose.
+Crie um arquivo `.env` dentro da pasta cmd/auction:
 
----
+```env
+BATCH_INSERT_INTERVAL=20s
+MAX_BATCH_SIZE=4
+AUCTION_INTERVAL=20s
+AUCTION_DURATION=60s
 
-## 3. Implementação do Fechamento Automático
+MONGO_INITDB_ROOT_USERNAME: admin
+MONGO_INITDB_ROOT_PASSWORD: admin
+MONGODB_URL=mongodb://admin:admin@mongodb:27017/auctions?authSource=admin
+MONGODB_DB=auctions
+```
 
-### Função para calcular o tempo do leilão
-- [ ] Implemente uma função que calcula a duração de cada leilão com base nas variáveis de ambiente.
-- [ ] Certifique-se de retornar o tempo no formato adequado (ex.: `time.Duration`).
+### 2. Subir os Contêineres
 
-### Goroutine para fechamento de leilões
-- [ ] Crie uma nova goroutine que:
-	- Executa periodicamente (ex.: usando `time.Ticker`).
-	- Verifica no banco de dados quais leilões expiraram.
-	- Atualiza o estado do leilão para "fechado".
-	- Trate concorrência usando locks ou transações no banco, se necessário.
+Execute o seguinte comando para subir os contêineres:
 
-### Atualização no banco de dados
-- [ ] Adicione a lógica no arquivo `internal/infra/database/auction/create_auction.go` para suportar o fechamento de leilões expirados.
+```bash
+docker-compose up --build
+```
 
----
+### 3. Testar
 
-## 4. Testes Automatizados
-- [ ] Crie testes para verificar o comportamento de fechamento automático:
-	- Simule a criação de um leilão.
-	- Aguarde o tempo definido e valide se o leilão foi fechado automaticamente.
-- [ ] Utilize ferramentas como `time.Sleep` ou mocks para testar o comportamento dependente de tempo.
+Crie um usuário na mão:
+1. Entre no container do mongoDB;
+2. Rode os comandos `mongosh -u admin -p admin`,
+`use auctions` e `db.users.insertOne({"_id": "f8a689eb-653a-4204-ba5d-5e0b91cbfcbf", "name": "nome"})`;
 
----
+Rode o endpoint para criar auctions:
 
-## 5. Documentação
-- [ ] Escreva instruções claras no `README.md`:
-	- Como configurar as variáveis de ambiente.
-	- Como rodar o projeto com Docker/Docker Compose.
-	- Como rodar os testes.
+```bash
+POST http://localhost:8080/auction
 
----
+{ 
+	"product_name": "name",
+	"category": "category",
+	"description": "description",
+	"condition": "0"
+}
+```
 
-## 6. Validação Final
-- [ ] Teste manualmente a aplicação para garantir que:
-	- Leilões criados expiram automaticamente após o tempo configurado.
-	- A aplicação funciona corretamente com múltiplos leilões simultâneos.
-- [ ] Revise o código para assegurar que está thread-safe e escalável.
+Feito isso, aguarde o tempo estipulado na variável AUCTION_DURATION e use o seguinte endpoint para validar o fechamento automático do leilão:
+
+```bash
+GET http://localhost:8080/auction/:auctionId
+```
+
+O status dele deverá ser 1.

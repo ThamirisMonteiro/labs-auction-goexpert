@@ -19,7 +19,8 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	if err := godotenv.Load("cmd/auction/.env"); err != nil {
 		log.Fatal("Error trying to load env variables")
@@ -34,7 +35,9 @@ func main() {
 
 	router := gin.Default()
 
-	userController, bidController, auctionsController := initDependencies(databaseConnection)
+	userController, bidController, auctionsController, auctionRepository := initDependencies(databaseConnection)
+
+	go auction.StartAuctionCloser(ctx, auctionRepository)
 
 	router.GET("/auction", auctionsController.FindAuctions)
 	router.GET("/auction/:auctionId", auctionsController.FindAuctionById)
@@ -50,9 +53,10 @@ func main() {
 func initDependencies(database *mongo.Database) (
 	userController *user_controller.UserController,
 	bidController *bid_controller.BidController,
-	auctionController *auction_controller.AuctionController) {
+	auctionController *auction_controller.AuctionController,
+	auctionRepository *auction.AuctionRepository) {
 
-	auctionRepository := auction.NewAuctionRepository(database)
+	auctionRepository = auction.NewAuctionRepository(database)
 	bidRepository := bid.NewBidRepository(database, auctionRepository)
 	userRepository := user.NewUserRepository(database)
 
